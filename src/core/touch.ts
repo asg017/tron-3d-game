@@ -8,18 +8,24 @@ const THROTTLE_DEAD_PX = 30
 const SWIPE_WINDOW_MS = 400
 /** ignore sub-jitter horizontal motion when detecting direction reversals */
 const JITTER_PX = 3
+/** thumb held still this long re-arms the stroke for another same-direction turn */
+const REARM_STILL_MS = 160
 
 /**
  * One-thumb touch controls, same InputCommand interface as the keyboard:
  *
- * - swipe left/right            → 90° turn per TURN_STEP_PX of travel
- * - reverse direction mid-drag  → reference re-anchors at the turnaround
+ * - swipe left/right            → one 90° turn per stroke, however far the
+ *   swipe travels (no accidental U-turns from a long flick)
+ * - reverse direction mid-drag  → re-arms and re-anchors at the turnaround
  *   point, so zigzag corner moves (left then right) chain without lifting
+ * - pause mid-drag              → re-arms, so a deliberate push-pause-push
+ *   chains same-direction turns without lifting
  * - hold and drag up / down     → accelerate / brake while held
  *
- * Two guards against accidental turns: displacement only counts inside
- * SWIPE_WINDOW_MS (slow thumb drift re-anchors instead of accumulating), and
- * touches that start on UI elements are ignored entirely.
+ * Guards against accidental turns: a stroke fires at most one turn per
+ * direction segment, displacement only counts inside SWIPE_WINDOW_MS (slow
+ * thumb drift re-anchors instead of accumulating), and touches that start on
+ * UI elements are ignored entirely.
  */
 export class TouchInput {
   private touchId: number | null = null
@@ -27,6 +33,8 @@ export class TouchInput {
   private refT = 0
   private prevX = 0
   private lastMoveDir = 0
+  private lastMoveT = 0
+  private armed = true
   private originY = 0
   private queuedTurn: Turn = null
   private throttle: Throttle = null
@@ -38,7 +46,9 @@ export class TouchInput {
     this.refX = t.clientX
     this.prevX = t.clientX
     this.refT = performance.now()
+    this.lastMoveT = this.refT
     this.lastMoveDir = 0
+    this.armed = true
     this.originY = t.clientY
     if (e.cancelable) e.preventDefault()
   }
@@ -50,12 +60,21 @@ export class TouchInput {
     if (e.cancelable) e.preventDefault()
     const now = performance.now()
 
-    // re-anchor at the turnaround point when the thumb reverses direction,
-    // so the return stroke of a zigzag needs only TURN_STEP_PX of travel
     const stepDx = t.clientX - this.prevX
     if (Math.abs(stepDx) > JITTER_PX) {
+      // motion resuming after a standstill is a deliberate new push: re-arm
+      if (now - this.lastMoveT > REARM_STILL_MS) {
+        this.armed = true
+        this.refX = this.prevX
+        this.refT = now
+      }
+      this.lastMoveT = now
+
+      // reversal re-arms and re-anchors at the turnaround point, so the
+      // return stroke of a zigzag needs only TURN_STEP_PX of travel
       const dir = Math.sign(stepDx)
       if (this.lastMoveDir !== 0 && dir !== this.lastMoveDir) {
+        this.armed = true
         this.refX = this.prevX
         this.refT = now
       }
@@ -70,8 +89,11 @@ export class TouchInput {
     }
 
     const dx = t.clientX - this.refX
-    if (Math.abs(dx) >= TURN_STEP_PX) {
+    if (this.armed && Math.abs(dx) >= TURN_STEP_PX) {
       this.queuedTurn = dx > 0 ? 'right' : 'left'
+      // disarm: the rest of this stroke can't fire again in this direction,
+      // however far it travels — one swipe, one turn
+      this.armed = false
       this.refX = t.clientX
       this.refT = now
     }

@@ -57,6 +57,27 @@ console.log('countdown + touch hint ok')
 await page.waitForFunction(() => window.__NEONGRID.simState.status === 'running', { timeout: 8000 })
 await page.waitForTimeout(400)
 
+// hold-drag up → speed should climb above cruise (26) while held
+// (throttle tests run first, while the bike is far from any wall)
+await gesture([
+  ['touchstart', 200, 500, 30],
+  ['touchmove', 200, 430, 700],
+])
+const boosted = await player()
+await gesture([['touchend', 200, 430, 0]])
+if (!(boosted.speed > 28)) fail(`hold-up boost: speed ${boosted.speed.toFixed(1)}, expected > 28`)
+else console.log(`hold-up boost ok (speed ${boosted.speed.toFixed(1)})`)
+
+// hold-drag down → speed should drop below cruise
+await gesture([
+  ['touchstart', 200, 400, 30],
+  ['touchmove', 200, 470, 900],
+])
+const braked = await player()
+await gesture([['touchend', 200, 470, 0]])
+if (!(braked.speed < 24)) fail(`hold-down brake: speed ${braked.speed.toFixed(1)}, expected < 24`)
+else console.log(`hold-down brake ok (speed ${braked.speed.toFixed(1)})`)
+
 // swipe left → heading 0 (north) should become 3 (west)
 let before = await player()
 await gesture([
@@ -83,6 +104,54 @@ after = await player()
 if (after.heading !== (before.heading + 1) % 4) {
   fail(`swipe right: heading ${before.heading} -> ${after.heading}, expected ${(before.heading + 1) % 4}`)
 } else console.log('swipe right turns ok')
+
+// one long fast flick (180px) must be exactly ONE turn, not a U-turn
+before = await player()
+let trailB4 = await page.evaluate(
+  () => window.__NEONGRID.simState.bikes.find((b) => b.isPlayer).trail.length,
+)
+await gesture([
+  ['touchstart', 280, 400, 16],
+  ['touchmove', 240, 400, 16],
+  ['touchmove', 190, 400, 16],
+  ['touchmove', 140, 400, 16],
+  ['touchmove', 100, 400, 16],
+  ['touchend', 100, 400, 0],
+])
+await page.waitForTimeout(400)
+after = await player()
+let trailNow = await page.evaluate(
+  () => window.__NEONGRID.simState.bikes.find((b) => b.isPlayer).trail.length,
+)
+if (after.heading !== (before.heading + 3) % 4 || trailNow !== trailB4 + 1) {
+  fail(
+    `long flick: heading ${before.heading} -> ${after.heading} (want one left), ` +
+      `trail ${trailB4} -> ${trailNow} (want +1, +2 means U-turn bug)`,
+  )
+} else console.log('long flick = single turn ok (no U-turn)')
+
+// push-pause-push in one stroke: pause re-arms, so two same-direction turns
+before = await player()
+trailB4 = trailNow
+await gesture([
+  ['touchstart', 300, 400, 16],
+  ['touchmove', 270, 400, 16],
+  ['touchmove', 240, 400, 250], // first turn, then hold still > REARM_STILL_MS
+  ['touchmove', 210, 400, 16],
+  ['touchmove', 175, 400, 16], // second push → second turn
+  ['touchend', 175, 400, 0],
+])
+await page.waitForTimeout(400)
+after = await player()
+trailNow = await page.evaluate(
+  () => window.__NEONGRID.simState.bikes.find((b) => b.isPlayer).trail.length,
+)
+if (after.heading !== (before.heading + 2) % 4 || trailNow !== trailB4 + 2) {
+  fail(
+    `push-pause-push: heading ${before.heading} -> ${after.heading} (want 180°), ` +
+      `trail ${trailB4} -> ${trailNow} (want +2)`,
+  )
+} else console.log('push-pause-push deliberate double turn ok')
 
 // zigzag without lifting: left then right in one continuous drag.
 // the second turn lands inside the 150ms cooldown and must be buffered, then
@@ -122,26 +191,6 @@ after = await player()
 if (after.heading !== before.heading) {
   fail(`slow drift caused a turn: heading ${before.heading} -> ${after.heading}`)
 } else console.log('slow-drift guard ok (no accidental turn)')
-
-// hold-drag up → speed should climb above cruise (26) while held
-await gesture([
-  ['touchstart', 200, 500, 30],
-  ['touchmove', 200, 430, 700],
-])
-const boosted = await player()
-await gesture([['touchend', 200, 430, 0]])
-if (!(boosted.speed > 28)) fail(`hold-up boost: speed ${boosted.speed.toFixed(1)}, expected > 28`)
-else console.log(`hold-up boost ok (speed ${boosted.speed.toFixed(1)})`)
-
-// hold-drag down → speed should drop below cruise
-await gesture([
-  ['touchstart', 200, 400, 30],
-  ['touchmove', 200, 470, 900],
-])
-const braked = await player()
-await gesture([['touchend', 200, 470, 0]])
-if (!(braked.speed < 24)) fail(`hold-down brake: speed ${braked.speed.toFixed(1)}, expected < 24`)
-else console.log(`hold-down brake ok (speed ${braked.speed.toFixed(1)})`)
 
 await page.screenshot({ path: '/tmp/tron-m-midgame.png' })
 
