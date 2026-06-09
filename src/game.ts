@@ -1,6 +1,8 @@
 import { KeyboardInput } from './core/input'
 import { GameLoop } from './core/loop'
+import { IS_TOUCH } from './core/platform'
 import { mulberry32 } from './core/rng'
+import { TouchInput } from './core/touch'
 import { CpuController } from './sim/ai/controller'
 import { DIFFICULTIES } from './sim/ai/difficulty'
 import { createSim, tickSim } from './sim/sim'
@@ -8,7 +10,7 @@ import type { InputCommand, RiderSetup, SimState } from './sim/types'
 import { DEFAULT_CONFIG, DIRS, noInput } from './sim/types'
 import { Arena } from './render/arena'
 import { createBikeMesh, rotationYForDir } from './render/bike'
-import { ChaseCamera } from './render/camera'
+import { ChaseCamera, DESKTOP_CAMERA, MOBILE_CAMERA } from './render/camera'
 import { ExplosionPool } from './render/effects'
 import { GameRenderer } from './render/renderer'
 import { TrailMesh } from './render/trail'
@@ -32,6 +34,7 @@ export class Game {
   private readonly chaseCam: ChaseCamera
   private readonly explosions: ExplosionPool
   private readonly input = new KeyboardInput()
+  private readonly touch = new TouchInput()
   private readonly loop: GameLoop
   private readonly cfg = DEFAULT_CONFIG
   private readonly riders: RiderSetup[]
@@ -54,16 +57,24 @@ export class Game {
     private readonly onExit: () => void,
   ) {
     this.seed = Date.now() & 0x7fffffff
-    this.gfx = new GameRenderer(container)
+    this.gfx = new GameRenderer(container, IS_TOUCH ? { maxDpr: 1.5, bloomStrength: 0.9 } : {})
     this.arena = new Arena(this.gfx.scene, this.cfg.arenaHalf)
-    this.chaseCam = new ChaseCamera(this.gfx.camera)
+    this.chaseCam = new ChaseCamera(this.gfx.camera, IS_TOUCH ? MOBILE_CAMERA : DESKTOP_CAMERA)
     this.explosions = new ExplosionPool(this.gfx.scene)
     this.riders = this.buildRiders()
     this.loop = new GameLoop(this.cfg.dt, () => this.tick(), (a, dt) => this.render(a, dt))
+    // debug/automation handle (used by the smoke tests)
+    ;(window as unknown as { __NEONGRID: Game }).__NEONGRID = this
+  }
+
+  /** current sim state, read-only — for smoke tests and debugging */
+  get simState(): SimState {
+    return this.sim
   }
 
   start(): void {
     this.input.attach()
+    this.touch.attach()
     this.startMatch()
     this.loop.start()
   }
@@ -122,7 +133,11 @@ export class Game {
 
   private tick(): void {
     const inputs: InputCommand[] = this.sim.bikes.map((b) => {
-      if (b.isPlayer) return this.input.consume()
+      if (b.isPlayer) {
+        const kb = this.input.consume()
+        const tc = this.touch.consume()
+        return { turn: tc.turn ?? kb.turn, throttle: tc.throttle ?? kb.throttle }
+      }
       return this.controllers[b.id]?.getInput(this.sim, this.cfg) ?? noInput()
     })
     tickSim(this.sim, this.cfg, inputs)
@@ -192,7 +207,7 @@ export class Game {
     }
 
     this.explosions.update(frameDt)
-    this.hud?.update(this.sim, this.cfg, this.scores)
+    this.hud?.update(this.sim, this.cfg, this.scores, IS_TOUCH && this.round === 1)
 
     const player = this.sim.bikes.find((b) => b.isPlayer)!
     const d = DIRS[player.heading]
@@ -211,6 +226,7 @@ export class Game {
   destroy(): void {
     this.loop.stop()
     this.input.detach()
+    this.touch.detach()
     this.hud?.dispose()
     this.hud = null
     for (const v of this.visuals) {

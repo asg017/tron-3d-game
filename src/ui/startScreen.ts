@@ -1,3 +1,4 @@
+import { IS_TOUCH } from '../core/platform'
 import type { Difficulty } from '../sim/ai/difficulty'
 import { NEON_COLORS } from '../theme'
 import { el, uiRoot } from './dom'
@@ -78,7 +79,9 @@ export function showStartScreen(onStart: (setup: PlayerSetup) => void): void {
     'div',
     'controls-hint',
     panel,
-    'A / D or ◀ ▶  TURN     W / ▲  ACCELERATE     S / ▼  BRAKE\nFIRST TO 3 ROUNDS WINS',
+    IS_TOUCH
+      ? 'SWIPE ◀ ▶  TURN\nHOLD & DRAG  ▲ BOOST · ▼ BRAKE\nFIRST TO 3 ROUNDS WINS'
+      : 'A / D or ◀ ▶  TURN     W / ▲  ACCELERATE     S / ▼  BRAKE\nFIRST TO 3 ROUNDS WINS',
   )
 
   const begin = () => {
@@ -91,6 +94,10 @@ export function showStartScreen(onStart: (setup: PlayerSetup) => void): void {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(setup))
     } catch {
       /* storage unavailable */
+    }
+    if (IS_TOUCH && typeof document.documentElement.requestFullscreen === 'function') {
+      // best-effort immersion; iPhone Safari has no fullscreen API — fine without
+      document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => {})
     }
     screen.remove()
     onStart(setup)

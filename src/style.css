@@ -21,12 +21,17 @@ body {
   background: var(--bg);
   color: var(--text);
   user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: none;
+  overscroll-behavior: none;
 }
 
 #scene,
 #scene canvas {
   position: fixed;
   inset: 0;
+  touch-action: none;
 }
 
 #ui {
@@ -201,9 +206,16 @@ input.name-input:focus {
 }
 
 /* ---------- HUD ---------- */
+/* the HUD is display-only; touches must fall through to the game */
+.hud-root {
+  position: absolute;
+  inset: 0;
+  pointer-events: none !important;
+}
+
 .hud-scores {
   position: absolute;
-  top: 18px;
+  top: calc(18px + env(safe-area-inset-top, 0px));
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -240,7 +252,7 @@ input.name-input:focus {
 
 .hud-speed {
   position: absolute;
-  bottom: 26px;
+  bottom: calc(26px + env(safe-area-inset-bottom, 0px));
   left: 50%;
   transform: translateX(-50%);
   width: 260px;
@@ -282,6 +294,20 @@ input.name-input:focus {
   letter-spacing: 10px;
 }
 
+.hud-hint {
+  position: absolute;
+  top: 58%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  font-size: 13px;
+  letter-spacing: 3px;
+  line-height: 2.1;
+  color: var(--dim);
+  text-align: center;
+  white-space: pre-line;
+}
+
 /* ---------- round / game over banners ---------- */
 .banner-title {
   font-size: 34px;
@@ -321,5 +347,89 @@ input.name-input:focus {
   to {
     opacity: 1;
     transform: none;
+  }
+}
+
+/* ---------- small screens ---------- */
+@media (max-width: 640px), (max-height: 480px) {
+  .title {
+    font-size: 30px;
+    letter-spacing: 8px;
+  }
+
+  .subtitle {
+    font-size: 11px;
+    letter-spacing: 5px;
+    margin-top: -10px;
+  }
+
+  .screen {
+    gap: 16px;
+  }
+
+  .panel {
+    min-width: 0;
+    width: min(92vw, 420px);
+    max-height: 78vh;
+    overflow-y: auto;
+    padding: 18px 20px;
+    gap: 14px;
+  }
+
+  .swatches {
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .swatch {
+    width: 38px;
+    height: 38px;
+  }
+
+  .big-btn {
+    font-size: 16px;
+    letter-spacing: 6px;
+    padding: 12px 0;
+  }
+
+  .controls-hint {
+    font-size: 10px;
+    letter-spacing: 1px;
+  }
+
+  .hud-scores {
+    gap: 16px;
+    padding: 7px 14px;
+    top: calc(10px + env(safe-area-inset-top, 0px));
+  }
+
+  .hud-rider .rname {
+    font-size: 10px;
+    letter-spacing: 2px;
+  }
+
+  .hud-speed {
+    width: 180px;
+    bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .hud-countdown {
+    font-size: 76px;
+  }
+
+  .hud-hint {
+    font-size: 11px;
+    letter-spacing: 2px;
+  }
+
+  .banner-title {
+    font-size: 22px;
+    letter-spacing: 4px;
+    text-align: center;
+    padding: 0 14px;
+  }
+
+  .scoreboard {
+    min-width: min(80vw, 320px);
   }
 }

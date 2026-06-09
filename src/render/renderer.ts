@@ -4,6 +4,12 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js'
 
+export interface RendererOptions {
+  /** cap on devicePixelRatio — lower on mobile GPUs, bloom is fill-rate heavy */
+  maxDpr?: number
+  bloomStrength?: number
+}
+
 export class GameRenderer {
   readonly scene = new THREE.Scene()
   readonly camera: THREE.PerspectiveCamera
@@ -11,9 +17,9 @@ export class GameRenderer {
   private readonly composer: EffectComposer
   private readonly onResizeBound = () => this.onResize()
 
-  constructor(container: HTMLElement) {
+  constructor(container: HTMLElement, opts: RendererOptions = {}) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' })
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, opts.maxDpr ?? 2))
     this.renderer.setSize(window.innerWidth, window.innerHeight)
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping
     this.renderer.toneMappingExposure = 1.1
@@ -34,7 +40,7 @@ export class GameRenderer {
     this.composer.addPass(new RenderPass(this.scene, this.camera))
     const bloom = new UnrealBloomPass(
       new THREE.Vector2(window.innerWidth, window.innerHeight),
-      1.05, // strength
+      opts.bloomStrength ?? 1.05,
       0.55, // radius
       0.2, // threshold
     )

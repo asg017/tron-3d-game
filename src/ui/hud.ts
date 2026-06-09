@@ -7,12 +7,14 @@ export class Hud {
   private readonly riderEls: { wrap: HTMLElement; pips: HTMLElement }[] = []
   private readonly fill: HTMLElement
   private readonly countdown: HTMLElement
+  private readonly hint: HTMLElement
   private lastCountText = ''
 
   constructor(state: SimState, private readonly winsNeeded: number) {
-    this.root = el('div', '', uiRoot())
+    this.root = el('div', 'hud-root', uiRoot())
 
-    const scores = el('div', 'hud-scores fade-in', this.root)
+    // no fade-in here: the animation's `transform: none` would briefly defeat the centering translateX
+    const scores = el('div', 'hud-scores', this.root)
     for (const b of state.bikes) {
       const wrap = el('div', 'hud-rider', scores)
       wrap.style.setProperty('--rc', b.color)
@@ -28,9 +30,12 @@ export class Hud {
 
     this.countdown = el('div', 'hud-countdown', this.root, '')
     this.countdown.style.display = 'none'
+
+    this.hint = el('div', 'hud-hint', this.root, 'SWIPE ◀ ▶ TO TURN\nHOLD & DRAG ▲ BOOST · ▼ BRAKE')
+    this.hint.style.display = 'none'
   }
 
-  update(state: SimState, cfg: SimConfig, scores: number[]): void {
+  update(state: SimState, cfg: SimConfig, scores: number[], showTouchHint = false): void {
     for (const b of state.bikes) {
       const r = this.riderEls[b.id]
       r.wrap.classList.toggle('dead', !b.alive)
@@ -57,6 +62,9 @@ export class Hud {
       this.countdown.textContent = text
       this.countdown.style.display = text ? 'block' : 'none'
     }
+
+    const hintVisible = showTouchHint && state.status === 'countdown'
+    this.hint.style.display = hintVisible ? 'block' : 'none'
   }
 
   dispose(): void {

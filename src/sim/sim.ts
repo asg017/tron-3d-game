@@ -21,6 +21,7 @@ export function createSim(cfg: SimConfig, riders: RiderSetup[]): SimState {
     heading: r.heading,
     speed: cfg.cruiseSpeed,
     turnCooldown: 0,
+    pendingTurn: null,
     trail: [{ x: r.x, z: r.z }],
     derezTicks: 0,
   }))
@@ -58,9 +59,20 @@ export function tickSim(state: SimState, cfg: SimConfig, inputs: InputCommand[])
     const input = inputs[b.id] ?? { turn: null, throttle: null }
 
     if (b.turnCooldown > 0) b.turnCooldown--
-    if (input.turn && b.turnCooldown <= 0) {
+    // buffer a turn that lands during cooldown (latest wins) so rapid
+    // zigzag inputs aren't dropped; it fires the tick cooldown expires
+    let turn = input.turn
+    if (turn && b.turnCooldown > 0) {
+      b.pendingTurn = turn
+      turn = null
+    } else if (!turn && b.turnCooldown <= 0 && b.pendingTurn) {
+      turn = b.pendingTurn
+      b.pendingTurn = null
+    }
+    if (turn && b.turnCooldown <= 0) {
+      b.pendingTurn = null
       b.trail.push({ x: b.x, z: b.z })
-      b.heading = input.turn === 'left' ? turnedLeft(b.heading) : turnedRight(b.heading)
+      b.heading = turn === 'left' ? turnedLeft(b.heading) : turnedRight(b.heading)
       b.speed = Math.max(cfg.minSpeed, b.speed * cfg.turnPenalty)
       b.turnCooldown = cfg.turnCooldownTicks
     }

@@ -45,6 +45,8 @@ export interface BikeState {
   speed: number
   /** ticks until the next turn is allowed */
   turnCooldown: number
+  /** turn received during cooldown, executed the moment cooldown expires */
+  pendingTurn: Turn
   /** corner points since spawn; the live wall runs from the last point to (x, z) */
   trail: TrailPoint[]
   /** ticks since crash (drives the derez fade) */
